@@ -1,60 +1,83 @@
 
 -module(docx_filler).
+-export([template/3, replaceValues/2, verify/2]).
 
--export([template/2]).
-
-%% Последовательность действий будет следующей:
-%% + 1. Получаем на вход файл, и хешмеп заполненный нужныйми значениями
-%% + 2. Выбираем все ключевые слова из файла 
-%% + 3. Проверяем что для каждого из ключений есть значение
-%% 4. Делаем подстановку всех значений по шаблону
-%% + 5. Сохраняем файл
 
 generate_exception(Reason) ->
   {error, Reason}.
 
 
-template(File, Params) ->
-  case readKeywords(File) of
-    {ok, Keywords} ->  
+template(TemplateFile, DestinationFile, Params) ->
+  case readKeywords(TemplateFile) of
+    {ok, Keywords} -> 
       case verify(Keywords, Params) of
         true -> 
-          replaceValues(File, Params);
+          Content = readFile(TemplateFile),
+          NewContent = replaceValues(Content, Params),
+          writeFile(DestinationFile, NewContent);
         false -> 
-          generate_exception(Reason)
+          generate_exception("Not verified.")
       end;
     {error, Reason} ->
       generate_exception(Reason)    
   end.
 
 
+readFile(File) ->
+  case file:read_file(File) of
+    {ok, Content} -> 
+      unicode:characters_to_list(Content);
+    {error, Reason} ->
+      generate_exception(Reason)
+  end.
+
+
+%% 
+%% Read all Keywords from template file
 readKeywords(File) ->
   case file:read_file(File) of
     {ok, Content} -> 
-      case re:run(unicode:characters_to_list(Content), "\{\{([a-z0-9]+\}\})", [global, {capture, [1], list}]) of
+      case re:run(unicode:characters_to_list(Content), "\{\{([a-z0-9]+)\}\}", [global, {capture, [1], list}]) of
         {match, Keywords} ->
           {ok, Keywords};
         {_} ->
-          generate_exception("Cannot read template file.")
+          generate_exception("Cannot read keywords from template file.")
       end;
     {error, Reason} ->
       generate_exception(Reason)
   end. 
 
 
+%% 
+%% Match keys between Keywords from file and Params from input
+%%
 verify(Keywords, Params) ->
-  lists:all(fun(K) -> lists:member(K, maps:keys(Params)) end, lists:map(fun([K]) -> list_to_atom(K) end, Keywords)).
+  lists:all(fun(K) -> lists:member(K, maps:keys(Params)) end, 
+            lists:map(fun([K]) -> list_to_atom(K) end, Keywords)).
 
 
-replaceValues(File, Params) ->
-  case file:read_file(File) of
-    {ok, Content} -> 
-      ReplaceFun = fun() end
-      NewContent = re:replace(unicode:charachter_to_list(Content), )
-      writeFile(File, NewContent);
-    {error, Reason} -> 
-      generate_exception(Reason)
-  end.
+%% 
+%% Take Params one by one 
+%% and apply them for Content 
+%% and return NewContent as Result
+%% ATTENTION: Now works for strings only!
+%%
+replaceValues(Content, Params) when Params == #{} ->
+  Content;
+replaceValues(Content, Params) ->
+  [ Key | _ ] = maps:keys(Params),
+  { Value, NewParams} = maps:take(Key, Params),
+  Result = replaceValue(Content, Key, Value),
+  replaceValues(Result, NewParams).
+
+
+%% 
+%% ATTENTION: Now works for strings only!
+%% TODO: Add another types of values
+%%
+replaceValue(Content, Key, Value) -> 
+  ReTemplate = "\{\{" ++ atom_to_list(Key) ++ "\}\}",
+  re:replace(Content, ReTemplate, Value, [{return, list}]).
 
 
 writeFile(File, Content) ->
