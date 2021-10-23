@@ -2,11 +2,15 @@
 -module(docx_filler).
 -export([template/3, replaceValues/2, verify/2]).
 
-
+%%
+% Function to handling undefined behaviour
+%
 generate_exception(Reason) ->
   {error, Reason}.
 
-
+%%
+% Exported function for external applications
+%
 template(TemplateFile, DestinationFile, Params) ->
   case readKeywords(TemplateFile) of
     {ok, Keywords} -> 
@@ -32,36 +36,42 @@ readFile(File) ->
   end.
 
 
-%% 
-%% Read all Keywords from template file
-readKeywords(File) ->
-  case file:read_file(File) of
-    {ok, Content} -> 
-      case re:run(unicode:characters_to_list(Content), "\{\{([a-z0-9]+)\}\}", [global, {capture, [1], list}]) of
-        {match, Keywords} ->
-          {ok, Keywords};
-        {_} ->
-          generate_exception("Cannot read keywords from template file.")
-      end;
+writeFile(File, Content) ->
+  case file:write_file(File, list_to_binary(Content)) of
+    ok -> 
+      {ok};
     {error, Reason} ->
       generate_exception(Reason)
-  end. 
+  end.
 
 
 %% 
-%% Match keys between Keywords from file and Params from input
-%%
+% Read all Keywords from template file
+%
+readKeywords(File) ->
+  Content = readFile(File), 
+  case re:run(Content, "\{\{([a-z0-9]+)\}\}", [global, {capture, [1], list}]) of
+    {match, Keywords} ->
+      {ok, Keywords};
+    {_} ->
+      generate_exception("Cannot read keywords from template file.")
+  end.
+
+
+%% 
+% Match keys between Keywords from file and Params from input
+%
 verify(Keywords, Params) ->
   lists:all(fun(K) -> lists:member(K, maps:keys(Params)) end, 
             lists:map(fun([K]) -> list_to_atom(K) end, Keywords)).
 
 
 %% 
-%% Take Params one by one 
-%% and apply them for Content 
-%% and return NewContent as Result
-%% ATTENTION: Now works for strings only!
-%%
+% Take Params one by one 
+% and apply them for Content 
+% and return NewContent as Result
+% ATTENTION: Now works for strings only!
+%
 replaceValues(Content, Params) when Params == #{} ->
   Content;
 replaceValues(Content, Params) ->
@@ -72,20 +82,10 @@ replaceValues(Content, Params) ->
 
 
 %% 
-%% ATTENTION: Now works for strings only!
-%% TODO: Add another types of values
-%%
+% ATTENTION: Now works for strings only!
+% TODO: Add another types of values
+%
 replaceValue(Content, Key, Value) -> 
   ReTemplate = "\{\{" ++ atom_to_list(Key) ++ "\}\}",
   re:replace(Content, ReTemplate, Value, [{return, list}]).
-
-
-writeFile(File, Content) ->
-  case file:write_file(File, list_to_binary(Content)) of
-    ok -> 
-      {ok};
-    {error, Reason} ->
-      generate_exception(Reason)
-  end.
-
 
