@@ -1,14 +1,10 @@
+%% -*- coding: utf-8 -*-
 
 -module(docx_filler).
 -export([template/3, zip_template/3]).
-
-%% 
-%% Итого чтобы успешно сделать замену необходимо:
-%% 1. Раскукожить файлик в произвольный каталог (Сгенерировать временное называние из словаря или передавать uuid ?)
-%% 2. Подменить через :template document.xml 
-%% 3. Собрать файл обратно в файл из каталога
-%%
-
+-export([readKeywords/1, unzipFile/1]).
+-export([readFile/1]).
+-export([verify/2]).
 
 %%
 % Function to handling undefined behaviour
@@ -25,8 +21,8 @@ zip_template(TemplateFile, DestinationFile, Params) ->
     {ok, DirName, FileList} -> 
       DocumentFile = DirName ++ "document.xml",
       template(DocumentFile, DocumentFile, Params),
-			zipDirectory(DestinationFile, FileList),
-			deleteDirectory(DirName); 
+			zipDirectory(DestinationFile, FileList);
+%%			deleteDirectory(DirName); 
     {error, Reason} ->
       generate_exception(Reason)
   end.
@@ -55,6 +51,7 @@ zipDirectory(DestinationFile, FileList) ->
 			generate_exception(Reason)
 	end.
 
+
 %%
 % Check filetype 
 %
@@ -62,7 +59,8 @@ isFileOrLink(File) -> filelib:is_regular(File) or (ok == element(1, file:file_re
 
 
 %%
-
+% Delete directory
+%
 deleteDirectory(DirectoryName) ->
   case {filelib:is_dir(DirectoryName), isFileOrLink(DirectoryName)} of
     {_, true} -> throw("The specified path is not a directory");
@@ -76,6 +74,7 @@ ensureDirSlash(Dir, Child) ->
     true -> Dir ++ Child;
     false -> Dir ++ "/" ++ Child
   end.
+
 
 recursiveDeleteDirectory([]) -> ok;
 recursiveDeleteDirectory([Current | Rest]) ->
@@ -98,7 +97,7 @@ template(TemplateFile, DestinationFile, Params) ->
     {ok, Keywords} -> 
       case verify(Keywords, Params) of
         true -> 
-          Content = readFile(TemplateFile),
+          Content = unicode:characters_to_binary(readFile(TemplateFile)),
           NewContent = replaceValues(Content, Params),
           writeFile(DestinationFile, NewContent);
         false -> 
@@ -112,7 +111,7 @@ template(TemplateFile, DestinationFile, Params) ->
 readFile(File) ->
   case file:read_file(File) of
     {ok, Content} -> 
-      unicode:characters_to_list(Content);
+      unicode:characters_to_list(Content, utf8);
     {error, Reason} ->
       generate_exception(Reason)
   end.
@@ -131,8 +130,8 @@ writeFile(File, Content) ->
 % Read all Keywords from template file
 %
 readKeywords(File) ->
-  Content = readFile(File), 
-  case re:run(Content, "\{\{([a-z0-9]+)\}\}", [global, {capture, [1], list}]) of
+  Content = unicode:characters_to_binary(readFile(File)), 
+  case re:run(Content, "\{\{([a-zA-Z0-9\s\_]+)\}\}", [global, {capture, [1], list}]) of
     {match, Keywords} ->
       {ok, Keywords};
     {_} ->
@@ -169,6 +168,6 @@ replaceValues(Content, Params) ->
 %
 replaceValue(Content, Key, Value) -> 
   ReTemplate = "\{\{" ++ atom_to_list(Key) ++ "\}\}",
-  re:replace(Content, ReTemplate, Value, [{return, list}]).
+  re:replace(Content, ReTemplate, unicode:characters_to_binary(Value), [{return, list}]).
 
 
