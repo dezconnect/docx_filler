@@ -1,10 +1,8 @@
 %% -*- coding: utf-8 -*-
 
--module(docx_filler).
--export([template/3, zip_template/3]).
--export([readKeywords/1, unzipFile/1]).
--export([readFile/1]).
--export([verify/2, clearFileList/1, zipDirectory/2]).
+-module(ms_filler).
+-export([template/3, docx_template/3, xlsx_template/3]).
+-export([seedTempDirName/0]).
 
 %%
 % Function to handling undefined behaviour
@@ -16,14 +14,29 @@ generate_exception(Reason) ->
 %%
 % Exported function for external applications for Microsoft Word .docx files
 %
-zip_template(TemplateFile, DestinationFile, Params) ->
+docx_template(TemplateFile, DestinationFile, Params) ->
   case unzipFile(TemplateFile) of 
     {ok, DirName, FileList} -> 
       DocumentFile = DirName ++ "word/document.xml",
       % TODO: Add correct error handling 
       template(DocumentFile, DocumentFile, Params),
-      zipDirectory(DestinationFile, FileList),
+      zipDirectory(DestinationFile, FileList, DirName),
 			deleteDirectory(DirName); 
+    {error, Reason} ->
+      generate_exception(Reason)
+  end.
+
+
+%%
+% Exported funciton for external applications for Microsoft Excel .xlsx files
+%
+xlsx_template(TemplateFile, DestinationFile, Params) ->
+  case unzipFile(TemplateFile) of
+    {ok, DirName, FileList} ->
+      SheetFile = DirName ++ "xl/sharedStrings.xml",
+      template(SheetFile, SheetFile, Params),
+      zipDirectory(DestinationFile, FileList, DirName),
+      deleteDirectory(DirName);
     {error, Reason} ->
       generate_exception(Reason)
   end.
@@ -33,9 +46,10 @@ zip_template(TemplateFile, DestinationFile, Params) ->
 % Function for unzip template file to named directory
 %
 unzipFile(TemplateFile) ->
-  case zip:unzip(TemplateFile, [{cwd, "./tmp/"}]) of
+  TempDirName = seedTempDirName(),
+  case zip:unzip(TemplateFile, [{ cwd, TempDirName }]) of
 		{ok, FileList} ->
-			{ok, "./tmp/", FileList};
+			{ok, TempDirName, FileList};
 		{error, Reason} ->
 			generate_exception(Reason)
 	end.
@@ -44,9 +58,9 @@ unzipFile(TemplateFile) ->
 %% 
 % Zipping directory to file-container
 %
-zipDirectory(DestinationFile, FileList) ->
-  ClearedFileList = clearFileList(FileList),
-  case zip:create(DestinationFile, ClearedFileList, [{cwd, "./tmp/"}]) of
+zipDirectory(DestinationFile, FileList, DirName) ->
+  ClearedFileList = clearFileList(FileList, DirName),
+  case zip:create(DestinationFile, ClearedFileList, [{ cwd, DirName }]) of
 		{ok, _} ->
 			ok;
 		{error, Reason} ->
@@ -57,8 +71,8 @@ zipDirectory(DestinationFile, FileList) ->
 %%
 % Remove temp directory path from FileList
 %
-clearFileList(FileList) ->
-  lists:map(fun(FileName) -> re:replace(FileName, "./tmp/", "", [{return, list}]) end, FileList).
+clearFileList(FileList, DirName) ->
+  lists:map(fun(FileName) -> re:replace(FileName, DirName, "", [{return, list}]) end, FileList).
 
 
 %%
@@ -178,5 +192,14 @@ replaceValues(Content, Params) ->
 replaceValue(Content, Key, Value) -> 
   ReTemplate = "\{\{" ++ atom_to_list(Key) ++ "\}\}",
   re:replace(Content, ReTemplate, unicode:characters_to_binary(Value), [{return, list}]).
+
+
+%%
+% Generate random seed for temp dir name
+%
+seedTempDirName() ->
+  Bits = entropy_string:bits(5.0e6, 1.0e12),
+  "./" ++ erlang:binary_to_list(entropy_string:random_string(Bits)) ++ "/".
+
 
 
