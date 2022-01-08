@@ -1,9 +1,22 @@
-docx_filler
+ms_filler
 =====
 
-An OTP library
+Microsoft Word/Excel templates library for Erlang.
 
-Build
------
+## Exported function
 
-    $ rebar3 compile
+For docx files: 
+
+  docx_template(TemplateFile, DestinationFile, Params)
+
+
+For xls files: 
+
+  xlsx_template(TemplateFile, DestinationFile, Params)
+
+
+For plain files:
+
+  template(TemplateFile, DestinationFile, Params)
+
+
