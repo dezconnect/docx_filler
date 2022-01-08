@@ -22,8 +22,8 @@ zip_template(TemplateFile, DestinationFile, Params) ->
       DocumentFile = DirName ++ "word/document.xml",
       % TODO: Add correct error handling 
       template(DocumentFile, DocumentFile, Params),
-      zipDirectory(DestinationFile, FileList);
-%%			deleteDirectory(DirName); 
+      zipDirectory(DestinationFile, FileList),
+			deleteDirectory(DirName); 
     {error, Reason} ->
       generate_exception(Reason)
   end.
@@ -64,7 +64,7 @@ clearFileList(FileList) ->
 %%
 % Check filetype 
 %
-isFileOrLink(File) -> filelib:is_regular(File) or (ok == element(1, file:file_readlink(File))).
+isFileOrLink(File) -> filelib:is_regular(File) or (ok == element(1, file:read_link(File))).
 
 
 %%
