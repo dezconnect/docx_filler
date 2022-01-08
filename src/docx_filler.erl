@@ -4,7 +4,7 @@
 -export([template/3, zip_template/3]).
 -export([readKeywords/1, unzipFile/1]).
 -export([readFile/1]).
--export([verify/2]).
+-export([verify/2, clearFileList/1, zipDirectory/2]).
 
 %%
 % Function to handling undefined behaviour
@@ -19,9 +19,10 @@ generate_exception(Reason) ->
 zip_template(TemplateFile, DestinationFile, Params) ->
   case unzipFile(TemplateFile) of 
     {ok, DirName, FileList} -> 
-      DocumentFile = DirName ++ "document.xml",
+      DocumentFile = DirName ++ "word/document.xml",
+      % TODO: Add correct error handling 
       template(DocumentFile, DocumentFile, Params),
-			zipDirectory(DestinationFile, FileList);
+      zipDirectory(DestinationFile, FileList);
 %%			deleteDirectory(DirName); 
     {error, Reason} ->
       generate_exception(Reason)
@@ -34,7 +35,7 @@ zip_template(TemplateFile, DestinationFile, Params) ->
 unzipFile(TemplateFile) ->
   case zip:unzip(TemplateFile, [{cwd, "./tmp/"}]) of
 		{ok, FileList} ->
-			{ok, "./tmp/word/", FileList};
+			{ok, "./tmp/", FileList};
 		{error, Reason} ->
 			generate_exception(Reason)
 	end.
@@ -44,12 +45,20 @@ unzipFile(TemplateFile) ->
 % Zipping directory to file-container
 %
 zipDirectory(DestinationFile, FileList) ->
-  case zip:create(DestinationFile, FileList) of 
+  ClearedFileList = clearFileList(FileList),
+  case zip:create(DestinationFile, ClearedFileList, [{cwd, "./tmp/"}]) of
 		{ok, _} ->
 			ok;
 		{error, Reason} ->
 			generate_exception(Reason)
 	end.
+
+
+%%
+% Remove temp directory path from FileList
+%
+clearFileList(FileList) ->
+  lists:map(fun(FileName) -> re:replace(FileName, "./tmp/", "", [{return, list}]) end, FileList).
 
 
 %%
